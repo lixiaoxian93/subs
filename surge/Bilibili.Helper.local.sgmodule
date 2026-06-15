@@ -1,0 +1,36 @@
+#!name= Bilibili Helper (local-fix)
+#!desc= 去广告 & 禁 P2P；砍掉 View/Reply 两个会崩的 grpc 劫持，恢复简介+评论
+#!arguments=运营商:cm,网络信息:CAIQBBoGbW9iaWxl
+
+# 基于 Maasea/sgmodule Bilibili.Helper.sgmodule 精简
+# 改动：注释掉 bilibili.helper.v1.view（简介）和 bilibili.helper.mainList（评论）
+# 原因：B站改了 protobuf，这两条脚本解析失败；Surge 在脚本失败时返回空响应，
+#       导致简介/评论整段不显示。砍掉后牺牲“简介/评论里的少量广告”，换回正常使用。
+# 需要开启 MITM over HTTP/2
+
+[Rule]
+DOMAIN-WILDCARD,*pcdn*.biliapi.net,REJECT
+
+[Header Rewrite]
+# 禁用 P2P 连接
+http-request ^https:\/\/app\.bilibili\.com\/x\/v2\/(splash|search\?|feed\/index) header-del x-tf-isp
+http-request ^https:\/\/app\.bilibili\.com\/x\/v2\/(splash|search\?|feed\/index) header-add x-tf-isp {{{运营商}}}
+
+http-request ^https:\/\/grpc\.biliapi\.net\/bilibili\.app\.show\.v1 header-replace x-bili-network-bin {{{网络信息}}}
+http-request ^https:\/\/grpc\.biliapi\.net\/bilibili\.app\.(view|viewunite)\.v1\.View\/(View|ViewProgress)$ header-replace x-bili-network-bin {{{网络信息}}}
+http-request ^https:\/\/grpc\.biliapi\.net\/bilibili\.app\.playurl\.v1\.PlayURL\/PlayView header-replace x-bili-network-bin {{{网络信息}}}
+http-request ^https:\/\/grpc\.biliapi\.net\/bilibili\.polymer\.app\.search\.v1\.Search\/SearchAll$ header-replace x-bili-network-bin {{{网络信息}}}
+http-request ^https:\/\/grpc\.biliapi\.net\/bilibili\.pgc\.gateway\.player\.v2\.PlayURL\/PlayView header-replace x-bili-network-bin {{{网络信息}}}
+
+[Script]
+bilibili.helper.v2 = type=http-response,pattern=^https:\/\/app\.bilibili\.com\/x\/v2\/(splash|search\?|feed\/index),requires-body=1,max-size=-1,binary-body-mode=0,script-path=https://raw.githubusercontent.com/Maasea/sgmodule/master/Script/Bilibili/bilibili.helper.v2.js
+bilibili.helper.dmView = type=http-response,pattern=^https:\/\/grpc\.biliapi\.net\/bilibili\.community\.service\.dm\.v1\.DM\/DmView,requires-body=1,max-size=-1,binary-body-mode=1,script-path=https://raw.githubusercontent.com/Maasea/sgmodule/master/Script/Bilibili/bilibili.helper.js
+bilibili.helper.teenager = type=http-response,pattern=^https:\/\/grpc\.biliapi\.net\/bilibili\.app\.interface\.v1\.Teenagers\/ModeStatus,requires-body=1,binary-body-mode=1,max-size=-1,script-path=https://raw.githubusercontent.com/Maasea/sgmodule/master/Script/Bilibili/bilibili.helper.js
+# --- 以下两行已禁用：B站改 proto 后脚本崩，Surge 返回空响应 → 简介/评论消失 ---
+# bilibili.helper.v1.view = type=http-response,pattern=^https:\/\/grpc\.biliapi\.net\/bilibili\.app\.(view|viewunite)\.v1\.View\/(View|ViewProgress)$,requires-body=1,binary-body-mode=1,max-size=-1,script-path=https://raw.githubusercontent.com/Maasea/sgmodule/master/Script/Bilibili/bilibili.helper.js
+# bilibili.helper.mainList = type=http-response,pattern=^https:\/\/grpc\.biliapi\.net\/bilibili\.main\.community\.reply\.v1\.Reply\/MainList,requires-body=1,binary-body-mode=1,max-size=-1,script-path=https://raw.githubusercontent.com/Maasea/sgmodule/master/Script/Bilibili/bilibili.helper.js
+bilibili.helper.searchAll = type=http-response,pattern=^https:\/\/grpc\.biliapi\.net\/bilibili\.polymer\.app\.search\.v1\.Search\/SearchAll$,requires-body=1,binary-body-mode=1,max-size=-1,script-path=https://raw.githubusercontent.com/Maasea/sgmodule/master/Script/Bilibili/bilibili.helper.js
+bilibili.helper.dynAll = type=http-response,pattern=^https:\/\/grpc\.biliapi\.net\/bilibili\.app\.dynamic\.v2\.Dynamic\/DynAll$,requires-body=1,binary-body-mode=1,max-size=-1,script-path=https://raw.githubusercontent.com/Maasea/sgmodule/master/Script/Bilibili/bilibili.helper.js
+
+[MITM]
+hostname = %APPEND% grpc.biliapi.net, app.bilibili.com
