@@ -1,38 +1,55 @@
-# 个人规则层(Clash Verge Rev 远程 Merge / 全局扩展配置)
-# 作用:prepend 到机场订阅规则的最前(最高优先级),叠加在任何机场之上。
-# 设计:最小覆盖 + 高价值纠偏,只做机场做得不对/不够的事,长尾交给机场。
-# 全部用 mihomo 内置 geosite/geoip,零外部 rule-provider 依赖(不会因链接挂掉而断网)。
-# 维护:改这个文件 → push → Clash Verge 对此 Merge 点刷新即生效。
+# 个人主路由层(Clash Verge Rev 远程 Merge)—— 我掌控全套路由,机场只当节点池
+# ───────────────────────────────────────────────────────────────
+# 设计:
+#   · 策略组 + 规则全在这份文件里,我维护;机场订阅只提供节点(在你 Clash Verge 本地,
+#     含 token,永不上 GitHub)。等价于 Surge 的 TAG.conf 自己写全套规则 + policy-path 拉节点。
+#   · 节点零硬编码:策略组用 include-all 自动纳入机场所有节点,机场换节点/改名都不影响。
+#   · 全用 mihomo 内置 geosite/geoip,零外部规则集依赖(不会因某链接挂掉而断网)。
+#   · 末尾 MATCH 接管兜底 → 机场自带规则全部失效,路由 100% 由本文件决定。
+# 维护:改本文件 → push → Clash Verge 对此 Merge 点「刷新」即生效。
+# ───────────────────────────────────────────────────────────────
 
+# ===== 策略组(我的,自动纳入机场全部节点)=====
+prepend-proxy-groups:
+  # 主代理组:默认走自动选择;也可手动点任意节点(列出了全部机场节点)
+  - name: 🚀 代理
+    type: select
+    include-all: true
+    proxies:
+      - ♻️ 自动选择
+      - DIRECT
+  # 自动选择:延迟最低的节点;排除高倍率节点省流量(只在 1x 等低倍率里选)
+  - name: ♻️ 自动选择
+    type: url-test
+    include-all: true
+    exclude-filter: "(2x|3x|5x|10x|20x|0.5x)"
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 50
+
+# ===== 规则(顺序匹配,首条命中即生效;末尾 MATCH 接管一切)=====
 prepend-rules:
-  # ===== 1. 家庭/个人直连(回家 WG、emby、局域网,绝不进代理)=====
-  - DOMAIN-SUFFIX,lxx0914.com,DIRECT
+  # 1) 局域网 / 本机 / 自有域名 → 直连
   - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
   - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
   - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
+  - DOMAIN-SUFFIX,lxx0914.com,DIRECT
+  - GEOSITE,private,DIRECT
 
-  # ===== 2. 去广告(mihomo 内置 geosite,无外部依赖)=====
-  # 嫌太激进(个别站点统计/功能受影响)就删掉这一行
-  - GEOSITE,category-ads-all,REJECT
-
-  # ===== 3. B站全系钉死直连(修 1080P 卡:大陆视频 CDN 别绕境外)=====
-  - DOMAIN-SUFFIX,bilibili.com,DIRECT
-  - DOMAIN-SUFFIX,bilivideo.com,DIRECT
-  - DOMAIN-SUFFIX,bilivideo.cn,DIRECT
-  - DOMAIN-SUFFIX,hdslb.com,DIRECT
-  - DOMAIN-SUFFIX,biliapi.net,DIRECT
-  - DOMAIN-SUFFIX,biliapi.com,DIRECT
-  - DOMAIN-SUFFIX,acgvideo.com,DIRECT
-  - DOMAIN-SUFFIX,szbdyd.com,DIRECT
-  - DOMAIN,upos-hz-mirrorakam.akamaized.net,DIRECT
+  # 2) B站视频 CDN 钉死直连(挂在全球 CDN 域名下,geosite:cn 漏掉,正是 1080P 卡顿根源)
   - DOMAIN-KEYWORD,upos,DIRECT
   - DOMAIN-KEYWORD,bilivideo,DIRECT
   - GEOSITE,bilibili,DIRECT
 
-  # ===== 4. 国内全量直连(核心效率:大陆服务一律不绕境外节点)=====
-  # 域名维度(fake-ip 友好,主力)
+  # 3) 国内 → 直连(核心效率:大陆服务一律不绕境外节点)
   - GEOSITE,cn,DIRECT
-  # IP 维度兜底(直连 IP 的连接;fake-ip 下需真解析,故不加 no-resolve)
-  - GEOIP,CN,DIRECT
+  - GEOIP,CN,DIRECT,no-resolve
 
-  # 其余(境外该走代理的 Google/YouTube/Telegram/AI 等)继续交给机场规则处理
+  # 4) 国外 → 代理
+  - GEOSITE,geolocation-!cn,🚀 代理
+
+  # 5) 兜底:漏网的(未知域名 / 直连 IP)→ 代理。此条接管后,机场自带规则全部失效。
+  - MATCH,🚀 代理
+
+  # 想去广告就把下面这行移到本区块最上面(域名级,拦不掉视频贴片广告;网页广告建议用 uBlock Origin):
+  # - GEOSITE,category-ads-all,REJECT
