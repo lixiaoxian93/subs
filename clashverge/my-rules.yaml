@@ -1,31 +1,13 @@
-# 个人主路由层(Clash Verge Rev 远程 Merge)—— 我掌控全套路由,机场只当节点池
+# 个人主路由层(Clash Verge Rev 全局扩展覆写)—— 我掌控路由,机场只当节点池
 # ───────────────────────────────────────────────────────────────
-# 设计:
-#   · 策略组 + 规则全在这份文件里,我维护;机场订阅只提供节点(在你 Clash Verge 本地,
-#     含 token,永不上 GitHub)。等价于 Surge 的 TAG.conf 自己写全套规则 + policy-path 拉节点。
-#   · 节点零硬编码:策略组用 include-all 自动纳入机场所有节点,机场换节点/改名都不影响。
-#   · 全用 mihomo 内置 geosite/geoip,零外部规则集依赖(不会因某链接挂掉而断网)。
-#   · 末尾 MATCH 接管兜底 → 机场自带规则全部失效,路由 100% 由本文件决定。
-# 维护:改本文件 → push → Clash Verge 对此 Merge 点「刷新」即生效。
+# 设计(v3:去掉自建策略组,直接复用机场已有的「手动切换」做代理出口,最稳):
+#   · 不再自建策略组。上版自建 🚀代理/♻️自动选择 在本机(Verge 2.4.7/mihomo 1.19.21)
+#     没被创建出来 → 指向它的「国外代理」「MATCH 兜底」两条规则被整条丢弃 → 路由落回机场默认。
+#   · 本版规则只引用 DIRECT 和机场已有的「手动切换」组 → 不可能因组缺失而失效。
+#   · 末尾 MATCH 接管兜底 → 机场自带几百条规则全部失效,路由 100% 由本文件决定。
+#   · 切节点:Clash Verge「代理」页点「手动切换」选即可(所有走代理的流量都从它出去)。
+# 维护:改本文件 → push → 在「全局扩展覆写配置」重新粘贴整段 → 重启内核。
 # ───────────────────────────────────────────────────────────────
-
-# ===== 策略组(我的,自动纳入机场全部节点)=====
-prepend-proxy-groups:
-  # 主代理组:默认走自动选择;也可手动点任意节点(列出了全部机场节点)
-  - name: 🚀 代理
-    type: select
-    include-all: true
-    proxies:
-      - ♻️ 自动选择
-      - DIRECT
-  # 自动选择:延迟最低的节点;排除高倍率节点省流量(只在 1x 等低倍率里选)
-  - name: ♻️ 自动选择
-    type: url-test
-    include-all: true
-    exclude-filter: "(2x|3x|5x|10x|20x|0.5x)"
-    url: http://www.gstatic.com/generate_204
-    interval: 300
-    tolerance: 50
 
 # ===== 规则(顺序匹配,首条命中即生效;末尾 MATCH 接管一切)=====
 prepend-rules:
@@ -45,11 +27,11 @@ prepend-rules:
   - GEOSITE,cn,DIRECT
   - GEOIP,CN,DIRECT,no-resolve
 
-  # 4) 国外 → 代理
-  - GEOSITE,geolocation-!cn,🚀 代理
+  # 4) 国外 → 走机场「手动切换」组(在代理页选节点)
+  - GEOSITE,geolocation-!cn,手动切换
 
   # 5) 兜底:漏网的(未知域名 / 直连 IP)→ 代理。此条接管后,机场自带规则全部失效。
-  - MATCH,🚀 代理
+  - MATCH,手动切换
 
   # 想去广告就把下面这行移到本区块最上面(域名级,拦不掉视频贴片广告;网页广告建议用 uBlock Origin):
   # - GEOSITE,category-ads-all,REJECT
