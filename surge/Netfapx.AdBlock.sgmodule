@@ -1,0 +1,39 @@
+#!name= Netfapx 去广告
+#!desc= 白名单式去广告:只放行 netfapx 自己 + 播放器必需的脚本源,其余外链脚本一律删,广告商换域名也照挡。另拦 popunder 跳转、隐藏广告位。需开 MITM。
+#!category= 去广告
+
+# 2026-08-01 实抓 netfapx 视频页得出的事实,决定了做法:
+#   页面上的广告脚本挂在 dm.encratykenelm.com / mx.deforcesapful.com /
+#   crittereasilyhangover.com / earmuffpostnasalrisotto.com 这类**随机词拼的轮换域名**上,
+#   popunder 那段更是把 4 个域名 base64 编码后逐个试。按域名拉黑名单 = 规则必然腐烂。
+#   所以主力反过来做:白名单——只允许三个脚本来源,其余全删。域名换多少个都无所谓。
+# 白名单逻辑在脚本里(netfapx-adclean.js 文件头有「删哪条会坏什么」的说明)。
+# 之所以用脚本而不是 [Body Rewrite]/[Header Rewrite]:那两段参数空格分隔且不支持引号,
+#   带空格的 CSP 值和「替换成空」都写不出来(已查 Surge 手册确认)。
+
+[Rule]
+# 已知广告域名在网络层就掐掉:省流量、页面更快。真正兜底的是脚本里的白名单,这里漏了也没事。
+DOMAIN-SUFFIX,traffichaus.com,REJECT
+DOMAIN-SUFFIX,cdn4ads.com,REJECT
+DOMAIN-SUFFIX,juicyads.com,REJECT
+DOMAIN-SUFFIX,exoclick.com,REJECT
+DOMAIN-SUFFIX,exosrv.com,REJECT
+DOMAIN-SUFFIX,popads.net,REJECT
+DOMAIN-SUFFIX,encratykenelm.com,REJECT
+DOMAIN-SUFFIX,deforcesapful.com,REJECT
+DOMAIN-SUFFIX,crittereasilyhangover.com,REJECT
+DOMAIN-SUFFIX,earmuffpostnasalrisotto.com,REJECT
+DOMAIN-SUFFIX,pbilcsebbutq.com,REJECT
+DOMAIN-SUFFIX,jxdgcaekgisb.com,REJECT
+# 站点响应头带 alt-svc: h3 —— 走 HTTP/3(QUIC)会绕过 MITM,本模块整个落空。
+# 封掉 netfapx 的 UDP/443,逼它回落 TCP+TLS。
+AND,((PROTOCOL,UDP),(DEST-PORT,443),(DOMAIN-SUFFIX,netfapx.com)),REJECT
+
+[Script]
+# pattern 排掉静态资源(wp-content 图片、preview-thumb 预览图、wp-json),只对网页跑;
+# 脚本内部还会再查一次 Content-Type,双保险。
+# max-size=-1:视频页 HTML 约 150KB,别让 Surge 因大小截断成半截 body。
+netfapx.adclean = type=http-response,pattern=^https:\/\/netfapx\.com\/(?!wp-content|wp-includes|wp-json|preview-thumb),requires-body=1,binary-body-mode=0,max-size=-1,script-path=https://raw.githubusercontent.com/lixiaoxian93/subs/main/surge/netfapx-adclean.js
+
+[MITM]
+hostname = %APPEND% netfapx.com

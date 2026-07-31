@@ -1,0 +1,42 @@
+! netfapx 去广告 —— 电脑浏览器版(uBlock Origin)
+! 装法:uBO 图标 → 齿轮(仪表板) → 「我的过滤规则」→ 把下面整段粘进去 → 应用更改
+! 逻辑与 Surge 那份模块(Netfapx.AdBlock.sgmodule)完全一致,只是换了实现载体。
+!
+! 为什么主力是 $csp 而不是拉黑广告域名:
+!   netfapx 的广告脚本挂在 dm.encratykenelm.com / mx.deforcesapful.com 这类随机词拼的
+!   轮换域名上,popunder 更是把 4 个域名 base64 编码后逐个试 —— 黑名单必然腐烂。
+!   $csp 反过来做白名单:只允许三个脚本源,浏览器自己拒掉其余全部,换多少域名都没用。
+!
+! 白名单里这三个删任何一个会坏什么:
+!   'self'              站内脚本,含取视频直链的 ajax.js —— 删了视频不播
+!   'unsafe-inline'     内联脚本:fluidPlayer 初始化、ajax_object(视频 id 在里面)
+!   cdn.fluidplayer.com 播放器本体 —— 删了视频框是空的
+!   code.jquery.com     站方从这引 jQuery,ajax.js 依赖它 —— 删了视频不播
+!   注:没放行 google recaptcha,所以站内评论表单会失效。要评论就在下面这行末尾的
+!      白名单里补 https://www.google.com https://www.gstatic.com
+
+||netfapx.com^$csp=script-src 'self' 'unsafe-inline' https://cdn.fluidplayer.com https://code.jquery.com
+
+! 「点哪都跳走」= popunder 调 window.open。这条把它掐了。
+netfapx.com##+js(nowoif)
+
+! 广告位容器留下的空白
+netfapx.com###ads-position-header-desktop
+netfapx.com###side-ads
+netfapx.com###side-ads-loader
+netfapx.com##.ads-header-desktop
+netfapx.com##.ads-header-desktop2
+
+! 已知广告域名(EasyList 多半已覆盖,补齐兜底;真正管用的是上面的 $csp)
+||traffichaus.com^
+||cdn4ads.com^
+||juicyads.com^
+||exoclick.com^
+||exosrv.com^
+||popads.net^
+||encratykenelm.com^
+||deforcesapful.com^
+||crittereasilyhangover.com^
+||earmuffpostnasalrisotto.com^
+||pbilcsebbutq.com^
+||jxdgcaekgisb.com^
