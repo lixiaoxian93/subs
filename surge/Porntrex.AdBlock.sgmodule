@@ -1,0 +1,30 @@
+#!name= Porntrex 去广告
+#!desc= 去掉 PT 的 popunder 跳转(点任何链接都可能弹)、视频前/后贴片和 banner。广告全挂在 gsrv.dev 一个固定域名上,网络层一刀掐掉,脚本再清页面上的残留配置。需开 MITM。
+#!category= 去广告
+
+# 2026-08-03 实抓 PT 视频页(iPhone UA)得出的事实,决定了做法:
+#   ① 站方**自己已经把外链广告脚本注释掉了**(js.onclckmn.com / adsmediabox.com 都在
+#      <!-- --> 里)。现在真正在跑的广告全挂在**一个固定域名** gsrv.dev 上:
+#        popunder      go.gsrv.dev/pop.go     (绑在 selector:'a',点任何链接都可能弹)
+#        前/后贴片      go.gsrv.dev/vast.go    (kt_player 的 adv_pre_vast / adv_post_vast)
+#        banner iframe  g2.gsrv.dev/banner.go
+#      域名固定不轮换 → 网络层 REJECT 就是主力,不需要 CSP 白名单
+#      (注 CSP 有挡住播放器 blob worker 的风险,见 js 文件头)。
+#   ② 站点是 nginx 且响应头**没有 alt-svc** —— 不走 HTTP/3,不需要像 PH 那样封 UDP/443。
+
+[Rule]
+# 一刀端掉 popunder + 前后贴片 + banner,三样都在这个域名下。
+DOMAIN-SUFFIX,gsrv.dev,REJECT
+# 站方目前注释掉了、但随时可能放开的两个广告源,兜底。
+DOMAIN-SUFFIX,onclckmn.com,REJECT
+DOMAIN-SUFFIX,adsmediabox.com,REJECT
+
+[Script]
+# pattern 排掉站内 ajax 片段接口(related_videos_html 等),只对网页跑;
+# 脚本内部还会再查一次 Content-Type,双保险。
+# 只 MITM porntrex.com 主域,不碰 cdntrex.com —— 视频流和静态资源在那,MITM 会拖慢。
+# max-size=-1:视频页 HTML 约 500KB,别让 Surge 因大小截断成半截 body。
+porntrex.adclean = type=http-response,pattern=^https:\/\/(?:[a-z0-9-]+\.)*porntrex\.com\/(?!related_videos_html\/|ajax),requires-body=1,binary-body-mode=0,max-size=-1,script-path=https://raw.githubusercontent.com/lixiaoxian93/subs/main/surge/porntrex-adclean.js
+
+[MITM]
+hostname = %APPEND% *.porntrex.com, porntrex.com
