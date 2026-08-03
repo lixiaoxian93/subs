@@ -29,7 +29,7 @@ AND,((PROTOCOL,UDP),(DEST-PORT,443),(DOMAIN-SUFFIX,pornhub.com)),REJECT
 # 脚本内部还会再查一次 Content-Type,双保险。
 # 只 MITM pornhub.com 主域,不碰 phncdn.com —— 视频流和静态资源在那,MITM 会拖慢。
 # max-size=-1:视频页 HTML 约 1MB,别让 Surge 因大小截断成半截 body。
-pornhub.adclean = type=http-response,pattern=^https:\/\/(?:[a-z0-9-]+\.)*pornhub\.com\/(?!_xa\/|front\/|ajax),requires-body=1,binary-body-mode=0,max-size=-1,script-path=https://raw.githubusercontent.com/lixiaoxian93/subs/main/surge/pornhub-adclean.js
+pornhub.adclean = type=http-response,pattern=^https:\/\/(?:[a-z0-9-]+\.)*pornhub\.com\/(?!_xa\/|front\/|ajax),requires-body=1,binary-body-mode=0,max-size=-1,script-path=https://ghfast.top/https://raw.githubusercontent.com/lixiaoxian93/subs/main/surge/pornhub-adclean.js
 
 [MITM]
 hostname = %APPEND% *.pornhub.com, pornhub.com
