@@ -1,0 +1,35 @@
+#!name= Pornhub 去广告
+#!desc= 去掉 PH 的横幅广告、popunder 跳转和视频前贴片。前贴片配置端点在 PH 自己域名下(反广告拦截设计),靠 URL Rewrite 返回空 JSON 治;广告位与外链广告脚本靠脚本删。需开 MITM。
+#!category= 去广告
+
+# 2026-08-03 实抓 PH 移动版视频页(iPhone UA)得出的事实,决定了做法:
+#   ① 广告是 PH **自家广告网 TrafficJunky**,域名固定(media.trafficjunky.net /
+#      trafficjunky.com),不像 netfapx 那样随机轮换 —— 所以网络层黑名单在这里是有效手段,
+#      不需要 netfapx 那种 CSP 白名单(注 CSP 反有挡住播放器 blob worker 的风险,见 js 文件头)。
+#   ② 前贴片(preroll)的配置端点做在**自己域名**下:
+#        https://www.pornhub.com/_xa/ads?zone_id=...&preroll_type=json
+#      实测 200 / application/json / 13KB。按域名拉黑名单碰不到它,只能按 URL 治。
+#   ③ 站点响应头带 alt-svc: h3=":443" —— 走 HTTP/3(QUIC)会绕过 MITM,整个模块落空。
+
+[Rule]
+# PH 自家广告网。域名固定,网络层掐掉最省事:省流量、页面更快。
+DOMAIN-SUFFIX,trafficjunky.net,REJECT
+DOMAIN-SUFFIX,trafficjunky.com,REJECT
+# 封掉 pornhub.com 的 UDP/443,逼它从 HTTP/3 回落 TCP+TLS,MITM 才能生效。
+AND,((PROTOCOL,UDP),(DEST-PORT,443),(DOMAIN-SUFFIX,pornhub.com)),REJECT
+
+[URL Rewrite]
+# 前贴片配置端点 —— 同源,规则层碰不到,只能按 URL 拦。
+# 用 reject-dict(返回空 JSON {})而不是 reject:站方代码是 `if (!prerollObj.json) return`,
+# 拿到空对象就自己跳过不播广告;直接 reject 反而可能让播放器等超时。
+^https?:\/\/(?:[a-z0-9-]+\.)*pornhub\.com\/_xa\/ads - reject-dict
+
+[Script]
+# pattern 排掉 _xa(上面已按 URL 处理)和 front / ajax 这类接口,只对网页跑;
+# 脚本内部还会再查一次 Content-Type,双保险。
+# 只 MITM pornhub.com 主域,不碰 phncdn.com —— 视频流和静态资源在那,MITM 会拖慢。
+# max-size=-1:视频页 HTML 约 1MB,别让 Surge 因大小截断成半截 body。
+pornhub.adclean = type=http-response,pattern=^https:\/\/(?:[a-z0-9-]+\.)*pornhub\.com\/(?!_xa\/|front\/|ajax),requires-body=1,binary-body-mode=0,max-size=-1,script-path=https://ghfast.top/https://raw.githubusercontent.com/lixiaoxian93/subs/main/surge/pornhub-adclean.js
+
+[MITM]
+hostname = %APPEND% *.pornhub.com, pornhub.com
